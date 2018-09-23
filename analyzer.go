@@ -30,19 +30,6 @@ type Analyzer struct {
 	invalidExternalLink int
 }
 
-type analyzeResponse struct {
-	Result string
-	Status analyzeResponseStatus
-}
-
-type analyzeResponseStatus int
-
-const (
-	statusSuccess analyzeResponseStatus = iota
-	statusFailure
-	statusComplete
-)
-
 // NewAnalyzer returns new Analyzer.
 func NewAnalyzer(ws *websocket.Conn,
 	requestURL string,
@@ -58,7 +45,8 @@ func NewAnalyzer(ws *websocket.Conn,
 	}
 }
 
-func (a *Analyzer) start() {
+// Start starts analyzing web page.
+func (a *Analyzer) Start() {
 	a.pararel(a.findTitle)
 	a.pararel(a.findDocType)
 	for i := 1; i <= 6; i++ {
@@ -67,6 +55,43 @@ func (a *Analyzer) start() {
 	a.pararel(a.findLinks)
 	a.pararel(a.findLoginForm)
 }
+
+// Wait waits until end of analyzing web page.
+func (a *Analyzer) Wait() {
+	a.waitGroup.Wait()
+}
+
+// Complete sends response of complete of analyzing web page to client.
+func (a *Analyzer) Complete() {
+	// only these parts are calculated in the goroutine in the goroutine.
+	// so these parts are rendered at the end of all the goroutines.
+	WriteResponse(a.ws, fmt.Sprintf("internal link count : %d", a.internalLink), statusSuccess)
+	WriteResponse(a.ws, fmt.Sprintf("invalid internal link count : %d", a.invalidInternalLink), statusSuccess)
+	WriteResponse(a.ws, fmt.Sprintf("external link count : %d", a.externalLink), statusSuccess)
+	WriteResponse(a.ws, fmt.Sprintf("invalid external link count : %d", a.invalidExternalLink), statusSuccess)
+
+	WriteResponse(a.ws, fmt.Sprint("analyze complete"), statusComplete)
+}
+
+// WriteResponse sends response to client.
+func WriteResponse(ws *websocket.Conn, message string, status analyzeResponseStatus) {
+	if err := websocket.JSON.Send(ws, analyzeResponse{Result: message, Status: status}); err != nil {
+		log.Printf("couldn't send websocket response %v", err)
+	}
+}
+
+type analyzeResponse struct {
+	Result string
+	Status analyzeResponseStatus
+}
+
+type analyzeResponseStatus int
+
+const (
+	statusSuccess analyzeResponseStatus = iota
+	statusFailure
+	statusComplete
+)
 
 func (a *Analyzer) pararel(f func()) {
 	a.waitGroup.Add(1)
@@ -80,12 +105,12 @@ func (a *Analyzer) findDocType() {
 	firstline := strings.Split(a.rawHTML, "\n")[0]
 	r, _ := regexp.Compile("<!DOCTYPE(.*?)>")
 	match := r.FindString(firstline)
-	writeResponse(a.ws, fmt.Sprintf("html version : %s", html.EscapeString(match)), statusSuccess)
+	WriteResponse(a.ws, fmt.Sprintf("html version : %s", html.EscapeString(match)), statusSuccess)
 }
 
 func (a *Analyzer) findTitle() {
 	value := a.document.Find("title").Text()
-	writeResponse(a.ws, fmt.Sprintf("title : %s", html.EscapeString(value)), statusSuccess)
+	WriteResponse(a.ws, fmt.Sprintf("title : %s", html.EscapeString(value)), statusSuccess)
 }
 
 func (a *Analyzer) findHeading(level int) func() {
@@ -93,7 +118,7 @@ func (a *Analyzer) findHeading(level int) func() {
 		var value int
 		findLevel := fmt.Sprintf("h%d", level)
 		a.document.Find(findLevel).Each(func(_ int, _ *goquery.Selection) { value++ })
-		writeResponse(a.ws, fmt.Sprintf("%s count : %d", findLevel, value), statusSuccess)
+		WriteResponse(a.ws, fmt.Sprintf("%s count : %d", findLevel, value), statusSuccess)
 	}
 }
 
@@ -140,26 +165,5 @@ func (a *Analyzer) findLoginForm() {
 			loginFound = true
 		}
 	})
-	writeResponse(a.ws, fmt.Sprintf("contain login form : %s", strconv.FormatBool(loginFound)), statusSuccess)
-}
-
-func (a *Analyzer) wait() {
-	a.waitGroup.Wait()
-}
-
-func (a *Analyzer) complete() {
-	// only these parts are calculated in the goroutine in the goroutine.
-	// so these parts are rendered at the end of all the goroutines.
-	writeResponse(a.ws, fmt.Sprintf("internal link count : %d", a.internalLink), statusSuccess)
-	writeResponse(a.ws, fmt.Sprintf("invalid internal link count : %d", a.invalidInternalLink), statusSuccess)
-	writeResponse(a.ws, fmt.Sprintf("external link count : %d", a.externalLink), statusSuccess)
-	writeResponse(a.ws, fmt.Sprintf("invalid external link count : %d", a.invalidExternalLink), statusSuccess)
-
-	writeResponse(a.ws, fmt.Sprint("analyze complete"), statusComplete)
-}
-
-func writeResponse(ws *websocket.Conn, message string, status analyzeResponseStatus) {
-	if err := websocket.JSON.Send(ws, analyzeResponse{Result: message, Status: status}); err != nil {
-		log.Printf("couldn't send websocket response %v", err)
-	}
+	WriteResponse(a.ws, fmt.Sprintf("contain login form : %s", strconv.FormatBool(loginFound)), statusSuccess)
 }
