@@ -9,9 +9,23 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+func getEnv(key, defaultValue string) string {
+	env := os.Getenv(key)
+	if env == "" {
+		return defaultValue
+	}
+	return env
+}
+
 func index(w http.ResponseWriter, _ *http.Request) {
+	webSocketHost := getEnv("ANALYZER_WEBSOCKET_HOST", "localhost:8080")
+
+	params := map[string]string{
+		"WebSocketHost": webSocketHost,
+	}
+
 	t := template.Must(template.ParseFiles("index.html.tpl"))
-	if err := t.ExecuteTemplate(w, "index.html.tpl", nil); err != nil {
+	if err := t.ExecuteTemplate(w, "index.html.tpl", params); err != nil {
 		log.Printf("Failed to parse template: %v", err)
 	}
 }
