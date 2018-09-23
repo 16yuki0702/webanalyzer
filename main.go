@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -76,7 +77,8 @@ func index(w http.ResponseWriter, _ *http.Request) {
 		"WebSocketHost": webSocketHost,
 	}
 
-	t := template.Must(template.ParseFiles("index.html.tpl"))
+	exe, _ := os.Executable()
+	t := template.Must(template.ParseFiles(filepath.Join(filepath.Dir(exe), ("template/index.html.tpl"))))
 	if err := t.ExecuteTemplate(w, "index.html.tpl", params); err != nil {
 		log.Printf("Failed to parse template: %v", err)
 	}

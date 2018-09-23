@@ -21,6 +21,7 @@ RUN CHROME_DRIVER_VERSION=`curl -sS chromedriver.storage.googleapis.com/LATEST_R
 
 # install application
 ADD . /go/src/github.com/16yuki0702/webanalyzer
+ADD template /go/bin/template
 RUN go get github.com/PuerkitoBio/goquery \
   github.com/sclevine/agouti \
   github.com/pkg/errors \
