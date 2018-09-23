@@ -1,0 +1,5 @@
+server:  
+  build: .
+  container_name: web_analyzer
+  ports: 
+    - 8080:8080
