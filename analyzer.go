@@ -21,9 +21,13 @@ type Analyzer struct {
 	ws         *websocket.Conn
 	requestURL string
 	rawHTML    string
-	doc        *goquery.Document
+	document   *goquery.Document
 	httpClient *http.Client
-	ignoreList map[string]bool
+
+	internalLink        int
+	invalidInternalLink int
+	externalLink        int
+	invalidExternalLink int
 }
 
 type analyzeResponse struct {
@@ -40,19 +44,16 @@ const (
 )
 
 // NewAnalyzer returns new Analyzer.
-func NewAnalyzer(requestURL string,
-	doc *goquery.Document,
-	raw string,
-	httpClient *http.Client,
-	ws *websocket.Conn) *Analyzer {
+func NewAnalyzer(ws *websocket.Conn,
+	requestURL string,
+	rawHTML string,
+	document *goquery.Document) *Analyzer {
 
 	return &Analyzer{
-		requestURL: requestURL,
 		ws:         ws,
-		doc:        doc,
-		rawHTML:    raw,
-		httpClient: httpClient,
-		ignoreList: map[string]bool{},
+		rawHTML:    rawHTML,
+		document:   document,
+		requestURL: requestURL,
 		waitGroup:  &sync.WaitGroup{},
 	}
 }
@@ -76,14 +77,14 @@ func (a *Analyzer) pararel(f func()) {
 }
 
 func (a *Analyzer) findDocType() {
-	r, _ := regexp.Compile("<!DOCTYPE(.*?)>")
 	firstline := strings.Split(a.rawHTML, "\n")[0]
+	r, _ := regexp.Compile("<!DOCTYPE(.*?)>")
 	match := r.FindString(firstline)
 	writeResponse(a.ws, fmt.Sprintf("html version : %s", html.EscapeString(match)), statusSuccess)
 }
 
 func (a *Analyzer) findTitle() {
-	value := a.doc.Find("title").Text()
+	value := a.document.Find("title").Text()
 	writeResponse(a.ws, fmt.Sprintf("title : %s", html.EscapeString(value)), statusSuccess)
 }
 
@@ -91,52 +92,49 @@ func (a *Analyzer) findHeading(level int) func() {
 	return func() {
 		var value int
 		findLevel := fmt.Sprintf("h%d", level)
-		a.doc.Find(findLevel).Each(func(_ int, _ *goquery.Selection) { value++ })
+		a.document.Find(findLevel).Each(func(_ int, _ *goquery.Selection) { value++ })
 		writeResponse(a.ws, fmt.Sprintf("%s count : %d", findLevel, value), statusSuccess)
 	}
 }
 
 func (a *Analyzer) findLinks() {
 	parsedURL, _ := url.ParseRequestURI(a.requestURL)
-	var internalLink, invalidInternalLink int
-	var externalLink, invalidExternalLink int
+	httpClient := NewHTTPClient()
+	ignoreList := map[string]bool{}
 
-	a.doc.Find("a[href]").Each(func(_ int, s *goquery.Selection) {
+	a.document.Find("a[href]").Each(func(_ int, s *goquery.Selection) {
 		link, _ := s.Attr("href")
-		if !a.ignoreList[link] {
-			a.ignoreList[link] = true
+		if !ignoreList[link] {
+			ignoreList[link] = true
 
 			uri, err := url.ParseRequestURI(link)
-			if err != nil {
-				log.Printf("parse error %v", err)
-			} else {
+			if err == nil {
 				if uri.Host == "" {
 					reqURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, parsedURL.Host, link)
-					internalLink++
-					_, err := a.httpClient.Get(reqURL)
-					if err != nil {
-						invalidInternalLink++
-					}
+					a.internalLink++
+					a.pararel(func() {
+						_, err := httpClient.Get(reqURL)
+						if err != nil {
+							a.invalidInternalLink++
+						}
+					})
 				} else {
-					externalLink++
-					_, err := a.httpClient.Get(link)
-					if err != nil {
-						invalidExternalLink++
-					}
+					a.externalLink++
+					a.pararel(func() {
+						_, err := httpClient.Get(link)
+						if err != nil {
+							a.invalidExternalLink++
+						}
+					})
 				}
 			}
 		}
 	})
-
-	writeResponse(a.ws, fmt.Sprintf("internal link count : %d", internalLink), statusSuccess)
-	writeResponse(a.ws, fmt.Sprintf("invalid internal link count : %d", invalidInternalLink), statusSuccess)
-	writeResponse(a.ws, fmt.Sprintf("external link count : %d", externalLink), statusSuccess)
-	writeResponse(a.ws, fmt.Sprintf("invalid external link count : %d", invalidExternalLink), statusSuccess)
 }
 
 func (a *Analyzer) findLoginForm() {
 	var loginFound bool
-	a.doc.Find("form").Each(func(_ int, s *goquery.Selection) {
+	a.document.Find("form").Each(func(_ int, s *goquery.Selection) {
 		action, _ := s.Attr("action")
 		if strings.Contains(action, "login") {
 			loginFound = true
@@ -150,6 +148,13 @@ func (a *Analyzer) wait() {
 }
 
 func (a *Analyzer) complete() {
+	// only these parts are calculated in the goroutine in the goroutine.
+	// so these parts are rendered at the end of all the goroutines.
+	writeResponse(a.ws, fmt.Sprintf("internal link count : %d", a.internalLink), statusSuccess)
+	writeResponse(a.ws, fmt.Sprintf("invalid internal link count : %d", a.invalidInternalLink), statusSuccess)
+	writeResponse(a.ws, fmt.Sprintf("external link count : %d", a.externalLink), statusSuccess)
+	writeResponse(a.ws, fmt.Sprintf("invalid external link count : %d", a.invalidExternalLink), statusSuccess)
+
 	writeResponse(a.ws, fmt.Sprint("analyze complete"), statusComplete)
 }
 

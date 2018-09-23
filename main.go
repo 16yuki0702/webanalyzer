@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -10,7 +10,10 @@ import (
 )
 
 func index(w http.ResponseWriter, _ *http.Request) {
-	fmt.Fprintf(w, "%s", indexPage())
+	t := template.Must(template.ParseFiles("index.html.tpl"))
+	if err := t.ExecuteTemplate(w, "index.html.tpl", nil); err != nil {
+		log.Printf("Failed to parse template: %v", err)
+	}
 }
 
 func websocketHandler(ws *websocket.Conn) {
@@ -23,9 +26,7 @@ func websocketHandler(ws *websocket.Conn) {
 			break
 		}
 
-		httpClient := NewHTTPClient()
-
-		_, err = httpClient.Get(url)
+		_, err = NewHTTPClient().Get(url)
 		if err != nil {
 			writeResponse(ws, err.Error(), statusFailure)
 			continue
@@ -43,8 +44,10 @@ func websocketHandler(ws *websocket.Conn) {
 			continue
 		}
 
-		analyzer := NewAnalyzer(url, document, rawHTML, httpClient, ws)
+		analyzer := NewAnalyzer(ws, url, rawHTML, document)
 		analyzer.start()
+		analyzer.wait()
+		analyzer.complete()
 	}
 }
 

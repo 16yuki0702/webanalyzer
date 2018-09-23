@@ -1,7 +1,3 @@
-package main
-
-func indexPage() string {
-	return `
 <!DOCTYPE html>
 <html>
 	<head>
@@ -11,6 +7,9 @@ func indexPage() string {
 	<script type="text/javascript">
 		var sock = null;
 		var wsuri = "ws://localhost:8080/ws";
+		const SUCCESS = 0;
+		const FAILURE = 1;
+		const COMPLETE = 2;
 
 		window.onload = function() {
 			sock = new WebSocket(wsuri);
@@ -20,11 +19,11 @@ func indexPage() string {
 			}
 			sock.onmessage = function(e) {
 				response = JSON.parse(e.data)
-				if (response.Status == 0) {
+				if (response.Status == SUCCESS) {
 					$('#results').append('<li>' + response.Result + '</li>');
-				} else if (response.Status == 1) {
+				} else if (response.Status == FAILURE) {
 					$('#results').append('<li style="color:red">' + response.Result + '</li>');
-				} else if (response.Status == 2) {
+				} else if (response.Status == COMPLETE) {
 					$('#results').append('<h2>' + response.Result + '</h2>');
 				}
 			}
@@ -38,11 +37,9 @@ func indexPage() string {
 	</script>
 	<body>
 		<form onsubmit="return false;" method=post>
-			<input id="message" type=text name="message" value="">
+			<input id="message" type=text name="message" value="" size=64>
 			<button onclick="send();">Send</button>
 		</form>
 		<ul id ="results"></ul>
 	</body>
 </html>
-`
-}
