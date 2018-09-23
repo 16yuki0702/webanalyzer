@@ -11,37 +11,30 @@ import (
 	"sync"
 
 	"github.com/PuerkitoBio/goquery"
+	"golang.org/x/net/websocket"
 )
 
 // Analyzer represents analyzer of web pages.
 type Analyzer struct {
 	waitGroup  *sync.WaitGroup
+	ws         *websocket.Conn
 	requestURL string
 	rawHTML    string
 	doc        *goquery.Document
 	httpClient *http.Client
-
-	htmlVersion         string
-	title               string
-	h1                  int
-	h2                  int
-	h3                  int
-	h4                  int
-	h5                  int
-	h6                  int
-	internalLink        int
-	invalidInternalLink int
-	externalLink        int
-	invalidExternalLink int
-	hasLoginFrom        bool
-
 	ignoreList map[string]bool
 }
 
 // NewAnalyzer returns new Analyzer.
-func NewAnalyzer(requestURL string, doc *goquery.Document, raw string, httpClient *http.Client) *Analyzer {
+func NewAnalyzer(requestURL string,
+	doc *goquery.Document,
+	raw string,
+	httpClient *http.Client,
+	ws *websocket.Conn) *Analyzer {
+
 	return &Analyzer{
 		requestURL: requestURL,
+		ws:         ws,
 		doc:        doc,
 		rawHTML:    raw,
 		httpClient: httpClient,
@@ -72,39 +65,55 @@ func (a *Analyzer) pararel(f func()) {
 }
 
 func (a *Analyzer) findDocType() {
-	a.htmlVersion = strings.Replace(strings.Split(a.rawHTML, "\n")[0], "<head>", "", 1)
+	value := strings.Replace(strings.Split(a.rawHTML, "\n")[0], "<head>", "", 1)
+	a.writeResponse(fmt.Sprintf("<li>htmlversion : %s</li>", html.EscapeString(value)))
 }
 
 func (a *Analyzer) findTitle() {
-	a.title = a.doc.Find("title").Text()
+	value := a.doc.Find("title").Text()
+	a.writeResponse(fmt.Sprintf("<li>title : %s</li>", html.EscapeString(value)))
 }
 
 func (a *Analyzer) findH1() {
-	a.doc.Find("h1").Each(func(_ int, _ *goquery.Selection) { a.h1++ })
+	var value int
+	a.doc.Find("h1").Each(func(_ int, _ *goquery.Selection) { value++ })
+	a.writeResponse(fmt.Sprintf("<li>h1 count : %d</li>", value))
 }
 
 func (a *Analyzer) findH2() {
-	a.doc.Find("h2").Each(func(_ int, _ *goquery.Selection) { a.h2++ })
+	var value int
+	a.doc.Find("h2").Each(func(_ int, _ *goquery.Selection) { value++ })
+	a.writeResponse(fmt.Sprintf("<li>h2 count : %d</li>", value))
 }
 
 func (a *Analyzer) findH3() {
-	a.doc.Find("h3").Each(func(_ int, _ *goquery.Selection) { a.h3++ })
+	var value int
+	a.doc.Find("h3").Each(func(_ int, _ *goquery.Selection) { value++ })
+	a.writeResponse(fmt.Sprintf("<li>h3 count : %d</li>", value))
 }
 
 func (a *Analyzer) findH4() {
-	a.doc.Find("h4").Each(func(_ int, _ *goquery.Selection) { a.h4++ })
+	var value int
+	a.doc.Find("h4").Each(func(_ int, _ *goquery.Selection) { value++ })
+	a.writeResponse(fmt.Sprintf("<li>h4 count : %d</li>", value))
 }
 
 func (a *Analyzer) findH5() {
-	a.doc.Find("h5").Each(func(_ int, _ *goquery.Selection) { a.h5++ })
+	var value int
+	a.doc.Find("h5").Each(func(_ int, _ *goquery.Selection) { value++ })
+	a.writeResponse(fmt.Sprintf("<li>h5 count : %d</li>", value))
 }
 
 func (a *Analyzer) findH6() {
-	a.doc.Find("h6").Each(func(_ int, _ *goquery.Selection) { a.h6++ })
+	var value int
+	a.doc.Find("h6").Each(func(_ int, _ *goquery.Selection) { value++ })
+	a.writeResponse(fmt.Sprintf("<li>h6 count : %d</li>", value))
 }
 
 func (a *Analyzer) findLinks() {
 	parsedURL, _ := url.ParseRequestURI(a.requestURL)
+	var internalLink, invalidInternalLink int
+	var externalLink, invalidExternalLink int
 
 	a.doc.Find("a[href]").Each(func(_ int, s *goquery.Selection) {
 		link, _ := s.Attr("href")
@@ -117,67 +126,49 @@ func (a *Analyzer) findLinks() {
 			} else {
 				if uri.Host == "" {
 					reqURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, parsedURL.Host, link)
-					a.internalLink++
-					a.pararel(func() {
-						_, err := a.httpClient.Get(reqURL)
-						if err != nil {
-							a.invalidInternalLink++
-						}
-					})
+					internalLink++
+					_, err := a.httpClient.Get(reqURL)
+					if err != nil {
+						invalidInternalLink++
+					}
 				} else {
-					a.externalLink++
-					a.pararel(func() {
-						_, err := a.httpClient.Get(link)
-						if err != nil {
-							a.invalidExternalLink++
-						}
-					})
+					externalLink++
+					_, err := a.httpClient.Get(link)
+					if err != nil {
+						invalidExternalLink++
+					}
 				}
 			}
 		}
 	})
+
+	a.writeResponse(fmt.Sprintf("<li>internal link count : %d</li>", internalLink))
+	a.writeResponse(fmt.Sprintf("<li>invalid internal link count : %d</li>", invalidInternalLink))
+	a.writeResponse(fmt.Sprintf("<li>external link count : %d</li>", externalLink))
+	a.writeResponse(fmt.Sprintf("<li>invalid external link count : %d</li>", invalidExternalLink))
+}
+
+func (a *Analyzer) writeResponse(message string) {
+	if err := websocket.Message.Send(a.ws, message); err != nil {
+		log.Printf("couldn't send websocket response %v", err)
+	}
 }
 
 func (a *Analyzer) findLoginForm() {
+	var loginFound bool
 	a.doc.Find("form").Each(func(_ int, s *goquery.Selection) {
 		action, _ := s.Attr("action")
 		if strings.Contains(action, "login") {
-			a.hasLoginFrom = true
+			loginFound = true
 		}
 	})
+	a.writeResponse(fmt.Sprintf("<li>contain login form : %s</li>", html.EscapeString(strconv.FormatBool(loginFound))))
 }
 
 func (a *Analyzer) wait() {
 	a.waitGroup.Wait()
 }
 
-func (a *Analyzer) toResponse() string {
-	return `
-<html>
-    <head>
-		<title>analyze web</title>
-    </head>
-    <body>
-		<form action="" method=post>
-			<input type=text name=value_post value=` + html.EscapeString(a.requestURL) + `>
-			<input type=submit name=submit value=submit>
-		</form>
-		<ul>
-			<li>html version : ` + html.EscapeString(a.htmlVersion) + `</li>
-			<li>title : ` + html.EscapeString(a.title) + `</li>
-			<li>h1 count : ` + html.EscapeString(strconv.Itoa(a.h1)) + `</li>
-			<li>h2 count : ` + html.EscapeString(strconv.Itoa(a.h2)) + `</li>
-			<li>h3 count : ` + html.EscapeString(strconv.Itoa(a.h3)) + `</li>
-			<li>h4 count : ` + html.EscapeString(strconv.Itoa(a.h4)) + `</li>
-			<li>h5 count : ` + html.EscapeString(strconv.Itoa(a.h5)) + `</li>
-			<li>h6 count : ` + html.EscapeString(strconv.Itoa(a.h6)) + `</li>
-			<li>internal link count : ` + html.EscapeString(strconv.Itoa(a.internalLink)) + `</li>
-			<li>invalid internal link count : ` + html.EscapeString(strconv.Itoa(a.invalidInternalLink)) + `</li>
-			<li>external link count : ` + html.EscapeString(strconv.Itoa(a.externalLink)) + `</li>
-			<li>invalid external link count : ` + html.EscapeString(strconv.Itoa(a.invalidExternalLink)) + `</li>
-			<li>contain login form : ` + html.EscapeString(strconv.FormatBool(a.hasLoginFrom)) + `</li>
-		</ul>
-    </body>
-</html>
-`
+func (a *Analyzer) complete() {
+	a.writeResponse(fmt.Sprint("<h2>analyze complete</h2>"))
 }

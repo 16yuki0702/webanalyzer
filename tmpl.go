@@ -1,38 +1,41 @@
 package main
 
-import (
-	"html"
-)
-
 func indexPage() string {
 	return `
+<!DOCTYPE html>
 <html>
 	<head>
 		<title>analyze web</title>
 	</head>
-	<body>
-		<form action="" method=post>
-			<input type=text name=value_post value="">
-			<input type=submit name=submit value=submit>
-		</form>
-	</body>
-</html>
-`
-}
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+	<script type="text/javascript">
+		var sock = null;
+		var wsuri = "ws://localhost:8080/ws";
 
-func errorPage(err error) string {
-	return `
-<html>
-    <head>
-		<title>analyze web</title>
-    </head>
-    <body>
-		<form action="" method=post>
-			<input type=text name=value_post value="">
-			<input type=submit name=submit value=submit>
+		window.onload = function() {
+			sock = new WebSocket(wsuri);
+			sock.onclose = function(e) {
+				$('#results').append('<li style="color:red">connection closed ' + e.code + '</li>');
+				$('#results').append('<li style="color:red">please restart server</li>');
+			}
+			sock.onmessage = function(e) {
+				$('#results').append(e.data);
+			}
+		};
+		function send() {
+			url = document.getElementById('message').value;
+			$("#results").empty();
+			$('#results').append('<h2>analyze start : ' + url + '</h2>');
+			sock.send(url);
+		};
+	</script>
+	<body>
+		<form onsubmit="return false;" method=post>
+			<input id="message" type=text name="message" value="">
+			<button onclick="send();">Send</button>
 		</form>
-		<div>` + html.EscapeString(err.Error()) + `</div>
-    </body>
+		<ul id ="results"></ul>
+	</body>
 </html>
 `
 }
