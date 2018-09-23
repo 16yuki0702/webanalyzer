@@ -23,8 +23,8 @@ RUN CHROME_DRIVER_VERSION=`curl -sS chromedriver.storage.googleapis.com/LATEST_R
 ADD . /go/src/github.com/16yuki0702/webanalyzer
 RUN go get github.com/PuerkitoBio/goquery \
   github.com/sclevine/agouti \
-  github.com/pkg/errors \
-  go install github.com/16yuki0702/webanalyzer
+  github.com/pkg/errors
+RUN go install github.com/16yuki0702/webanalyzer
 
 EXPOSE 8080
 
