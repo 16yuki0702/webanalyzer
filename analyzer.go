@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/net/websocket"
@@ -28,6 +29,9 @@ type Analyzer struct {
 	invalidInternalLink int
 	externalLink        int
 	invalidExternalLink int
+
+	startTime      time.Time
+	processingTime time.Duration
 }
 
 // NewAnalyzer returns new Analyzer.
@@ -47,6 +51,7 @@ func NewAnalyzer(ws *websocket.Conn,
 
 // Start starts analyzing web page.
 func (a *Analyzer) Start() {
+	a.startTime = time.Now()
 	a.pararel(a.findTitle)
 	a.pararel(a.findDocType)
 	for i := 1; i <= 6; i++ {
@@ -59,6 +64,7 @@ func (a *Analyzer) Start() {
 // Wait waits until end of analyzing web page.
 func (a *Analyzer) Wait() {
 	a.waitGroup.Wait()
+	a.processingTime = time.Since(a.startTime)
 }
 
 // Complete sends response of complete of analyzing web page to client.
@@ -71,6 +77,7 @@ func (a *Analyzer) Complete() {
 	WriteResponse(a.ws, fmt.Sprintf("invalid external link count : %d", a.invalidExternalLink), statusSuccess)
 
 	WriteResponse(a.ws, fmt.Sprint("analyze complete"), statusComplete)
+	WriteResponse(a.ws, fmt.Sprintf("processing time %s", a.processingTime), statusSuccess)
 }
 
 // WriteResponse sends response to client.
