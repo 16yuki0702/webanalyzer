@@ -19,7 +19,14 @@ func indexPage() string {
 				$('#results').append('<li style="color:red">please restart server</li>');
 			}
 			sock.onmessage = function(e) {
-				$('#results').append(e.data);
+				response = JSON.parse(e.data)
+				if (response.Status == 0) {
+					$('#results').append('<li>' + response.Result + '</li>');
+				} else if (response.Status == 1) {
+					$('#results').append('<li style="color:red">' + response.Result + '</li>');
+				} else if (response.Status == 2) {
+					$('#results').append('<h2>' + response.Result + '</h2>');
+				}
 			}
 		};
 		function send() {

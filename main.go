@@ -27,33 +27,24 @@ func websocketHandler(ws *websocket.Conn) {
 
 		_, err = httpClient.Get(url)
 		if err != nil {
-			writeError(ws, err)
+			writeResponse(ws, err.Error(), statusFailure)
 			continue
 		}
 
 		rawHTML, err := getHTML(url)
 		if err != nil {
-			writeError(ws, err)
+			writeResponse(ws, err.Error(), statusFailure)
 			continue
 		}
 
 		document, err := getDocument(rawHTML)
 		if err != nil {
-			writeError(ws, err)
+			writeResponse(ws, err.Error(), statusFailure)
 			continue
 		}
 
 		analyzer := NewAnalyzer(url, document, rawHTML, httpClient, ws)
 		analyzer.start()
-		analyzer.wait()
-		analyzer.complete()
-	}
-}
-
-func writeError(ws *websocket.Conn, err error) {
-	message := fmt.Sprintf("<li style=\"color:red\">%s</li>", err.Error())
-	if err := websocket.Message.Send(ws, message); err != nil {
-		log.Printf("couldn't send websocket response %v", err)
 	}
 }
 

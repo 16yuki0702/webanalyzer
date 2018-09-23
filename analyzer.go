@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,6 +25,19 @@ type Analyzer struct {
 	httpClient *http.Client
 	ignoreList map[string]bool
 }
+
+type analyzeResponse struct {
+	Result string
+	Status analyzeResponseStatus
+}
+
+type analyzeResponseStatus int
+
+const (
+	statusSuccess analyzeResponseStatus = iota
+	statusFailure
+	statusComplete
+)
 
 // NewAnalyzer returns new Analyzer.
 func NewAnalyzer(requestURL string,
@@ -46,12 +60,9 @@ func NewAnalyzer(requestURL string,
 func (a *Analyzer) start() {
 	a.pararel(a.findTitle)
 	a.pararel(a.findDocType)
-	a.pararel(a.findH1)
-	a.pararel(a.findH2)
-	a.pararel(a.findH3)
-	a.pararel(a.findH4)
-	a.pararel(a.findH5)
-	a.pararel(a.findH6)
+	for i := 1; i <= 6; i++ {
+		a.pararel(a.findHeading(i))
+	}
 	a.pararel(a.findLinks)
 	a.pararel(a.findLoginForm)
 }
@@ -65,49 +76,24 @@ func (a *Analyzer) pararel(f func()) {
 }
 
 func (a *Analyzer) findDocType() {
-	value := strings.Replace(strings.Split(a.rawHTML, "\n")[0], "<head>", "", 1)
-	a.writeResponse(fmt.Sprintf("<li>htmlversion : %s</li>", html.EscapeString(value)))
+	r, _ := regexp.Compile("<!DOCTYPE(.*?)>")
+	firstline := strings.Split(a.rawHTML, "\n")[0]
+	match := r.FindString(firstline)
+	writeResponse(a.ws, fmt.Sprintf("html version : %s", html.EscapeString(match)), statusSuccess)
 }
 
 func (a *Analyzer) findTitle() {
 	value := a.doc.Find("title").Text()
-	a.writeResponse(fmt.Sprintf("<li>title : %s</li>", html.EscapeString(value)))
+	writeResponse(a.ws, fmt.Sprintf("title : %s", html.EscapeString(value)), statusSuccess)
 }
 
-func (a *Analyzer) findH1() {
-	var value int
-	a.doc.Find("h1").Each(func(_ int, _ *goquery.Selection) { value++ })
-	a.writeResponse(fmt.Sprintf("<li>h1 count : %d</li>", value))
-}
-
-func (a *Analyzer) findH2() {
-	var value int
-	a.doc.Find("h2").Each(func(_ int, _ *goquery.Selection) { value++ })
-	a.writeResponse(fmt.Sprintf("<li>h2 count : %d</li>", value))
-}
-
-func (a *Analyzer) findH3() {
-	var value int
-	a.doc.Find("h3").Each(func(_ int, _ *goquery.Selection) { value++ })
-	a.writeResponse(fmt.Sprintf("<li>h3 count : %d</li>", value))
-}
-
-func (a *Analyzer) findH4() {
-	var value int
-	a.doc.Find("h4").Each(func(_ int, _ *goquery.Selection) { value++ })
-	a.writeResponse(fmt.Sprintf("<li>h4 count : %d</li>", value))
-}
-
-func (a *Analyzer) findH5() {
-	var value int
-	a.doc.Find("h5").Each(func(_ int, _ *goquery.Selection) { value++ })
-	a.writeResponse(fmt.Sprintf("<li>h5 count : %d</li>", value))
-}
-
-func (a *Analyzer) findH6() {
-	var value int
-	a.doc.Find("h6").Each(func(_ int, _ *goquery.Selection) { value++ })
-	a.writeResponse(fmt.Sprintf("<li>h6 count : %d</li>", value))
+func (a *Analyzer) findHeading(level int) func() {
+	return func() {
+		var value int
+		findLevel := fmt.Sprintf("h%d", level)
+		a.doc.Find(findLevel).Each(func(_ int, _ *goquery.Selection) { value++ })
+		writeResponse(a.ws, fmt.Sprintf("%s count : %d", findLevel, value), statusSuccess)
+	}
 }
 
 func (a *Analyzer) findLinks() {
@@ -142,16 +128,10 @@ func (a *Analyzer) findLinks() {
 		}
 	})
 
-	a.writeResponse(fmt.Sprintf("<li>internal link count : %d</li>", internalLink))
-	a.writeResponse(fmt.Sprintf("<li>invalid internal link count : %d</li>", invalidInternalLink))
-	a.writeResponse(fmt.Sprintf("<li>external link count : %d</li>", externalLink))
-	a.writeResponse(fmt.Sprintf("<li>invalid external link count : %d</li>", invalidExternalLink))
-}
-
-func (a *Analyzer) writeResponse(message string) {
-	if err := websocket.Message.Send(a.ws, message); err != nil {
-		log.Printf("couldn't send websocket response %v", err)
-	}
+	writeResponse(a.ws, fmt.Sprintf("internal link count : %d", internalLink), statusSuccess)
+	writeResponse(a.ws, fmt.Sprintf("invalid internal link count : %d", invalidInternalLink), statusSuccess)
+	writeResponse(a.ws, fmt.Sprintf("external link count : %d", externalLink), statusSuccess)
+	writeResponse(a.ws, fmt.Sprintf("invalid external link count : %d", invalidExternalLink), statusSuccess)
 }
 
 func (a *Analyzer) findLoginForm() {
@@ -162,7 +142,7 @@ func (a *Analyzer) findLoginForm() {
 			loginFound = true
 		}
 	})
-	a.writeResponse(fmt.Sprintf("<li>contain login form : %s</li>", html.EscapeString(strconv.FormatBool(loginFound))))
+	writeResponse(a.ws, fmt.Sprintf("contain login form : %s", strconv.FormatBool(loginFound)), statusSuccess)
 }
 
 func (a *Analyzer) wait() {
@@ -170,5 +150,11 @@ func (a *Analyzer) wait() {
 }
 
 func (a *Analyzer) complete() {
-	a.writeResponse(fmt.Sprint("<h2>analyze complete</h2>"))
+	writeResponse(a.ws, fmt.Sprint("analyze complete"), statusComplete)
+}
+
+func writeResponse(ws *websocket.Conn, message string, status analyzeResponseStatus) {
+	if err := websocket.JSON.Send(ws, analyzeResponse{Result: message, Status: status}); err != nil {
+		log.Printf("couldn't send websocket response %v", err)
+	}
 }
