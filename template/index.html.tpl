@@ -30,13 +30,13 @@
 					$('#results').append('<li class="list-group-item list-group-item-info">' + response.Result + '</li>');
 				}
 			}
+			$('#submitButton').on('click', function(){
+				url = $('#message').val();
+				$('#results').empty();
+				$('#results').append('<li class="list-group-item list-group-item-info">analyze start : ' + url + '</li>');
+				sock.send(url);
+			});
 		});
-		function send() {
-			url = $('#message').val();
-			$('#results').empty();
-			$('#results').append('<li class="list-group-item list-group-item-info">analyze start : ' + url + '</li>');
-			sock.send(url);
-		};
 	</script>
 	<body>
 		<div class="container">
@@ -45,9 +45,9 @@
 				<div class="form-group">
 					<input id='message' class="form-control">
 				</div>
-				<button class="btn btn-default" onclick='send();'>Send</button>
+				<button id='submitButton' class="btn btn-default">Send</button>
 			</form>
-			<ul id ='results' class="list-group"></ul>
+			<ul id='results' class="list-group"></ul>
 		</div>
 	</body>
 </html>
