@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html>
 	<head>
-		<title>analyze web</title>
+		<title>Web Analyzer</title>
 	</head>
-	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+	<script src="//ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+	<script src="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
 	<script type="text/javascript">
 		var sock = null;
 		var wsuri = "ws://{{.WebSocketHost}}:{{.WebSocketPort}}/ws";
@@ -14,32 +16,38 @@
 		$(function(){
 			sock = new WebSocket(wsuri);
 			sock.onclose = function(e) {
-				$('#results').append('<li style="color:red">connection closed ' + e.code + '</li>');
-				$('#results').append('<li style="color:red">please restart server</li>');
+				$('#results').append('<li class="list-group-item list-group-item-danger">Server Closed</li>');
+				$('#results').append('<li class="list-group-item list-group-item-danger">Error Code : ' + e.code + '</li>');
+				$('#results').append('<li class="list-group-item list-group-item-danger">Please Restart Server</li>');
 			}
 			sock.onmessage = function(e) {
 				response = JSON.parse(e.data)
 				if (response.Status == SUCCESS) {
-					$('#results').append('<li>' + response.Result + '</li>');
+					$('#results').append('<li class="list-group-item list-group-item-success">' + response.Result + '</li>');
 				} else if (response.Status == FAILURE) {
-					$('#results').append('<li style="color:red">' + response.Result + '</li>');
+					$('#results').append('<li class="list-group-item list-group-item-danger">' + response.Result + '</li>');
 				} else if (response.Status == COMPLETE) {
-					$('#results').append('<h2>' + response.Result + '</h2>');
+					$('#results').append('<li class="list-group-item list-group-item-info">' + response.Result + '</li>');
 				}
 			}
 		});
 		function send() {
 			url = $('#message').val();
 			$('#results').empty();
-			$('#results').append('<h2>analyze start : ' + url + '</h2>');
+			$('#results').append('<li class="list-group-item list-group-item-info">analyze start : ' + url + '</li>');
 			sock.send(url);
 		};
 	</script>
 	<body>
-		<form onsubmit='return false;' method=post>
-			<input id='message' type=text name='message' value='' size=64>
-			<button onclick='send();'>Send</button>
-		</form>
-		<ul id ='results'></ul>
+		<div class="container">
+			<h3 class="h3">Web Analyzer</h3>
+			<form onsubmit='return false;' method=post>
+				<div class="form-group">
+					<input id='message' class="form-control">
+				</div>
+				<button class="btn btn-default" onclick='send();'>Send</button>
+			</form>
+			<ul id ='results' class="list-group"></ul>
+		</div>
 	</body>
 </html>

@@ -64,8 +64,7 @@ func (a *Analyzer) Wait() {
 
 // Complete sends response of complete of analyzing web page to client.
 func (a *Analyzer) Complete() {
-	ResponseComplete(a.ws, fmt.Sprint("analyze complete"))
-	ResponseComplete(a.ws, fmt.Sprintf("processing time %s", a.processingTime))
+	ResponseComplete(a.ws, fmt.Sprintf("analyze complete : processing time %s", a.processingTime))
 }
 
 func (a *Analyzer) pararel(f func()) {
