@@ -6,7 +6,7 @@
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 	<script type="text/javascript">
 		var sock = null;
-		var wsuri = "ws://{{.WebSocketHost}}/ws";
+		var wsuri = "ws://{{.WebSocketHost}}:{{.WebSocketPort}}/ws";
 		const SUCCESS = 0;
 		const FAILURE = 1;
 		const COMPLETE = 2;

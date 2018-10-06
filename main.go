@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -70,14 +71,25 @@ func getEnv(key, defaultValue string) string {
 	return env
 }
 
-func index(w http.ResponseWriter, _ *http.Request) {
-	webSocketHost := getEnv("ANALYZER_WEBSOCKET_HOST", "localhost:8080")
+func webSocketHost() string {
+	return getEnv("ANALYZER_WEBSOCKET_HOST", "localhost")
+}
 
+func webSocketPort() string {
+	return getEnv("ANALYZER_WEBSOCKET_PORT", "8080")
+}
+
+func index(w http.ResponseWriter, _ *http.Request) {
 	params := map[string]string{
-		"WebSocketHost": webSocketHost,
+		"WebSocketHost": webSocketHost(),
+		"WebSocketPort": webSocketPort(),
 	}
 
-	exe, _ := os.Executable()
+	exe, err := os.Executable()
+	if err != nil {
+		log.Printf("Failed to get exe: %v", err)
+	}
+
 	t := template.Must(template.ParseFiles(filepath.Join(filepath.Dir(exe), ("template/index.html.tpl"))))
 	if err := t.ExecuteTemplate(w, "index.html.tpl", params); err != nil {
 		log.Printf("Failed to parse template: %v", err)
@@ -123,7 +135,7 @@ func main() {
 	defer driver.Stop()
 	http.HandleFunc("/", index)
 	http.Handle("/ws", websocket.Handler(websocketHandler))
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := http.ListenAndServe(fmt.Sprintf(":%s", webSocketPort()), nil); err != nil {
 		log.Printf("Failed to start server. please restart server: %v", err)
 		os.Exit(1)
 	}
