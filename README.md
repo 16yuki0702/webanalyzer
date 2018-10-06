@@ -30,4 +30,4 @@ $ docker-compose up
 ANALYZER_WEBSOCKET_HOST=localhost
 ANALYZER_WEBSOCKET_PORT=8080
 ```
-  defaule value is localhost:8080.
+  default value is localhost:8080.
