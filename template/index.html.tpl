@@ -11,7 +11,7 @@
 		const FAILURE = 1;
 		const COMPLETE = 2;
 
-		window.onload = function() {
+		$(function(){
 			sock = new WebSocket(wsuri);
 			sock.onclose = function(e) {
 				$('#results').append('<li style="color:red">connection closed ' + e.code + '</li>');
@@ -27,19 +27,19 @@
 					$('#results').append('<h2>' + response.Result + '</h2>');
 				}
 			}
-		};
+		});
 		function send() {
-			url = document.getElementById('message').value;
-			$("#results").empty();
+			url = $('#message').val();
+			$('#results').empty();
 			$('#results').append('<h2>analyze start : ' + url + '</h2>');
 			sock.send(url);
 		};
 	</script>
 	<body>
-		<form onsubmit="return false;" method=post>
-			<input id="message" type=text name="message" value="" size=64>
-			<button onclick="send();">Send</button>
+		<form onsubmit='return false;' method=post>
+			<input id='message' type=text name='message' value='' size=64>
+			<button onclick='send();'>Send</button>
 		</form>
-		<ul id ="results"></ul>
+		<ul id ='results'></ul>
 	</body>
 </html>

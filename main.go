@@ -96,19 +96,19 @@ func websocketHandler(ws *websocket.Conn) {
 
 		_, err = NewHTTPClient().Get(url)
 		if err != nil {
-			WriteResponse(ws, err.Error(), statusFailure)
+			ResponseFailure(ws, err.Error())
 			continue
 		}
 
 		rawHTML, err := getHTML(url)
 		if err != nil {
-			WriteResponse(ws, err.Error(), statusFailure)
+			ResponseFailure(ws, err.Error())
 			continue
 		}
 
 		document, err := getDocument(rawHTML)
 		if err != nil {
-			WriteResponse(ws, err.Error(), statusFailure)
+			ResponseFailure(ws, err.Error())
 			continue
 		}
 
